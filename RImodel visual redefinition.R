@@ -28,6 +28,7 @@ RImodel <- function(time, state, parms, distance, nr0) {
     GlucoseUptake <- uptakeRate * GLUCOSE * MICROBE 
     MicrobeGrowth <- GlucoseUptake * CUE 
     MicrobeMortality <- mortalityRate * MICROBE
+    depolymerization <-Vmaxprime * Microbe/(Microbe + km)
     
     # Rate of change = Flux gradient + Biology
     dGLUCOSE <-  dGLUCOSE - GlucoseUptake + MicrobeMortality + SOC_mineralization
@@ -40,7 +41,7 @@ RImodel <- function(time, state, parms, distance, nr0) {
 ########################################################################################################
 #Time
 dt = 3600/4 #time step (seconds)
-days = 100#number of days to run the simulation
+days = 300#number of days to run the simulation
 duration = days*86400 #days to seconds
 nt = duration/dt +1 #number of observations
 time = seq(0,duration,dt) #seconds
@@ -120,38 +121,70 @@ avg_glucose_concentration <- total_glucose_mass / total_area # calc. average con
 avg_microbe_concentration <- total_microbe_mass / total_area
 
 #time_vector <- time
-plot( time/86400, avg_glucose_concentration)
-lines(time/86400, avg_microbe_concentration, col = "green")
+plot( time/86400, avg_glucose_concentration, ylim = c(0,0.01),
+      lines(time/86400, avg_microbe_concentration, col = "green"),xlab = "Days", ylab = "Concentration", 
+      main = "Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "green"), lty = 1)
 
 # Aveg. inner most ring Glucose & Microbes conc. across time 
 inner_ring_glucose_concentration <- GLUCOSE_result[, 1] #Extract concentrations for the innermost ring
 inner_ring_microbe_concentration <- MICROBE_result[, 1] 
 
-plot(time, inner_ring_glucose_concentration)
-lines(time, inner_ring_microbe_concentration, col = "darkturquoise")
+plot(time/86400, inner_ring_glucose_concentration,
+     lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise"),
+     ylim = c(min(inner_ring_glucose_concentration, inner_ring_microbe_concentration), 
+              max(inner_ring_glucose_concentration, inner_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Inner Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "darkturquoise"), lty = 1)
 
 # Aveg. outer most ring Glucose & Microbes conc. across time 
-outer_ring_glucose_concentration <- GLUCOSE_result[, N] # Last column
-outer_ring_microbe_concentration <- MICROBE_result[, N] # Last column
+outer_ring_glucose_concentration <- GLUCOSE_result[, N] 
+outer_ring_microbe_concentration <- MICROBE_result[, N] 
 
-plot(time, outer_ring_glucose_concentration)
-lines(time, outer_ring_microbe_concentration, col = "red")
+plot(time/86400, outer_ring_glucose_concentration,
+     lines(time/86400, outer_ring_microbe_concentration, col = "red"),
+     ylim = c(min(outer_ring_glucose_concentration, outer_ring_microbe_concentration), 
+              max(outer_ring_glucose_concentration, outer_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Outer Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "red"), lty = 1)
 
 # Aveg. middle most ring Glucose & Microbes conc. across time 
-middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] # Middle column
-middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] # Middle column
+middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] 
+middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] 
 
-plot(time, middle_ring_glucose_concentration)
-lines(time, middle_ring_microbe_concentration, col = "purple")
+plot(time/86400, middle_ring_glucose_concentration,
+     lines(time/86400, middle_ring_microbe_concentration, col = "purple"),
+     ylim = c(min(middle_ring_glucose_concentration, middle_ring_microbe_concentration), 
+              max(middle_ring_glucose_concentration, middle_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Middle Ring Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "purple"), lty = 1)
 
 # Distance of Microbe and Glucose at the end of the simulation at every location 
 final_glucose_concentration <- GLUCOSE_result[nrow(GLUCOSE_result), ]
 final_microbe_concentration <- MICROBE_result[nrow(MICROBE_result), ]
 
-plot(r, final_glucose_concentration)
-plot(r, final_microbe_concentration)
+plot(r, final_glucose_concentration,
+     xlab = "Location (r)", ylab = "Final Glucose Concentration", 
+     main = "Final Glucose Concentration at the End of Simulation")
 
-#Don't have any initial glucose & see the base release. ( Microbes bigger than 0)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+plot(r, final_microbe_concentration,
+     xlab = "Location (r)", ylab = "Final Microbe Concentration", 
+     main = "Final Microbe Concentration at the End of Simulation")
+
+# Plot the evolution of microbial biomass at the initial location over time
+plot(time/86400, MICROBE_result[, initial_microbe_location],
+     xlab = "Days", ylab = "Microbial Biomass",
+     main = "Microbial Biomass at Initial Location Over Time")
+
+
+#Don't have any initial glucose & see the base release. ( Microbes bigger than 0)
 
 # Model parameters
 R <- 20
@@ -206,39 +239,70 @@ avg_glucose_concentration <- total_glucose_mass / total_area # calc. average con
 avg_microbe_concentration <- total_microbe_mass / total_area
 
 #time_vector <- time
-plot( time/86400, avg_glucose_concentration)
-lines(time/86400, avg_microbe_concentration, col = "green")
+plot( time/86400, avg_glucose_concentration, ylim = c(0,0.01),
+      lines(time/86400, avg_microbe_concentration, col = "green"),xlab = "Days", ylab = "Concentration", 
+      main = "Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "green"), lty = 1)
 
 # Aveg. inner most ring Glucose & Microbes conc. across time 
 inner_ring_glucose_concentration <- GLUCOSE_result[, 1] #Extract concentrations for the innermost ring
 inner_ring_microbe_concentration <- MICROBE_result[, 1] 
 
-plot(time/86400, inner_ring_glucose_concentration)
-lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise")
+plot(time/86400, inner_ring_glucose_concentration,
+     lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise"),
+     ylim = c(min(inner_ring_glucose_concentration, inner_ring_microbe_concentration), 
+              max(inner_ring_glucose_concentration, inner_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Inner Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "darkturquoise"), lty = 1)
 
 # Aveg. outer most ring Glucose & Microbes conc. across time 
-outer_ring_glucose_concentration <- GLUCOSE_result[, N] # Last column
-outer_ring_microbe_concentration <- MICROBE_result[, N] # Last column
+outer_ring_glucose_concentration <- GLUCOSE_result[, N] 
+outer_ring_microbe_concentration <- MICROBE_result[, N] 
 
-plot(time/86400, outer_ring_glucose_concentration)
-lines(time/86400, outer_ring_microbe_concentration, col = "red")
+plot(time/86400, outer_ring_glucose_concentration,
+     lines(time/86400, outer_ring_microbe_concentration, col = "red"),
+     ylim = c(min(outer_ring_glucose_concentration, outer_ring_microbe_concentration), 
+              max(outer_ring_glucose_concentration, outer_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Outer Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "red"), lty = 1)
 
 # Aveg. middle most ring Glucose & Microbes conc. across time 
-middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] # Middle column
-middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] # Middle column
+middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] 
+middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] 
 
-plot(time/86400, middle_ring_glucose_concentration)
-lines(time/86400, middle_ring_microbe_concentration, col = "purple")
+plot(time/86400, middle_ring_glucose_concentration,
+     lines(time/86400, middle_ring_microbe_concentration, col = "purple"),
+     ylim = c(min(middle_ring_glucose_concentration, middle_ring_microbe_concentration), 
+              max(middle_ring_glucose_concentration, middle_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Middle Ring Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "purple"), lty = 1)
 
 # Distance of Microbe and Glucose at the end of the simulation at every location 
 final_glucose_concentration <- GLUCOSE_result[nrow(GLUCOSE_result), ]
 final_microbe_concentration <- MICROBE_result[nrow(MICROBE_result), ]
 
-plot(r, final_glucose_concentration)
-plot(r, final_microbe_concentration)
+plot(r, final_glucose_concentration,
+     xlab = "Location (r)", ylab = "Final Glucose Concentration", 
+     main = "Final Glucose Concentration at the End of Simulation")
+
+plot(r, final_microbe_concentration,
+     xlab = "Location (r)", ylab = "Final Microbe Concentration", 
+     main = "Final Microbe Concentration at the End of Simulation")
+
+# Plot the evolution of microbial biomass at the initial location over time
+plot(time/86400, MICROBE_result[, initial_microbe_location],
+     xlab = "Days", ylab = "Microbial Biomass",
+     main = "Microbial Biomass at Initial Location Over Time")
 
 
-#Turn diffusion off & have an initial glucose concentration at the root surface with no base mineralization!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#Turn diffusion off & have an initial glucose concentration at the root surface with no base mineralization
 
 # Model parameters
 R <- 20
@@ -263,7 +327,6 @@ Microbes = rep(C_add/100, N)
 state = c(Glucose,Microbes)
 
 # Time points for output
-
 
 # Solve the model using the default banded reformulation method
 model <- RImodel(0, state, parms, distance, N)
@@ -295,40 +358,69 @@ avg_glucose_concentration <- total_glucose_mass / total_area # calc. average con
 avg_microbe_concentration <- total_microbe_mass / total_area
 
 #time_vector <- time
-plot( time/86400, avg_glucose_concentration)
-lines(time/86400, avg_microbe_concentration, col = "green")
+plot( time/86400, avg_glucose_concentration, ylim = c(0,0.01),
+      lines(time/86400, avg_microbe_concentration, col = "green"),xlab = "Days", ylab = "Concentration", 
+      main = "Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "green"), lty = 1)
 
 # Aveg. inner most ring Glucose & Microbes conc. across time 
 inner_ring_glucose_concentration <- GLUCOSE_result[, 1] #Extract concentrations for the innermost ring
 inner_ring_microbe_concentration <- MICROBE_result[, 1] 
 
-plot(time/86400, inner_ring_glucose_concentration)
-lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise")
+plot(time/86400, inner_ring_glucose_concentration,
+     lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise"),
+     ylim = c(min(inner_ring_glucose_concentration, inner_ring_microbe_concentration), 
+              max(inner_ring_glucose_concentration, inner_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Inner Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "darkturquoise"), lty = 1)
 
 # Aveg. outer most ring Glucose & Microbes conc. across time 
-outer_ring_glucose_concentration <- GLUCOSE_result[, N] # Last column
-outer_ring_microbe_concentration <- MICROBE_result[, N] # Last column
+outer_ring_glucose_concentration <- GLUCOSE_result[, N] 
+outer_ring_microbe_concentration <- MICROBE_result[, N] 
 
-plot(time/86400, outer_ring_glucose_concentration)
-lines(time/86400, outer_ring_microbe_concentration, col = "red")
+plot(time/86400, outer_ring_glucose_concentration,
+     lines(time/86400, outer_ring_microbe_concentration, col = "red"),
+     ylim = c(min(outer_ring_glucose_concentration, outer_ring_microbe_concentration), 
+              max(outer_ring_glucose_concentration, outer_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Outer Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "red"), lty = 1)
 
 # Aveg. middle most ring Glucose & Microbes conc. across time 
-middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] # Middle column
-middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] # Middle column
+middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] 
+middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] 
 
-plot(time/86400, middle_ring_glucose_concentration)
-lines(time/86400, middle_ring_microbe_concentration, col = "purple")
+plot(time/86400, middle_ring_glucose_concentration,
+     lines(time/86400, middle_ring_microbe_concentration, col = "purple"),
+     ylim = c(min(middle_ring_glucose_concentration, middle_ring_microbe_concentration), 
+              max(middle_ring_glucose_concentration, middle_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Middle Ring Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "purple"), lty = 1)
 
 # Distance of Microbe and Glucose at the end of the simulation at every location 
 final_glucose_concentration <- GLUCOSE_result[nrow(GLUCOSE_result), ]
 final_microbe_concentration <- MICROBE_result[nrow(MICROBE_result), ]
 
-plot(r, final_glucose_concentration)
-plot(r, final_microbe_concentration)
+plot(r, final_glucose_concentration,
+     xlab = "Location (r)", ylab = "Final Glucose Concentration", 
+     main = "Final Glucose Concentration at the End of Simulation")
 
-#Run with just diffusion to see mass balance!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+plot(r, final_microbe_concentration,
+     xlab = "Location (r)", ylab = "Final Microbe Concentration", 
+     main = "Final Microbe Concentration at the End of Simulation")
 
+# Plot the evolution of microbial biomass at the initial location over time
+plot(time/86400, MICROBE_result[, initial_microbe_location],
+     xlab = "Days", ylab = "Microbial Biomass",
+     main = "Microbial Biomass at Initial Location Over Time")
 
+# Run with just diffusion to see mass balance
 # Model parameters
 R <- 20
 N <- 100
@@ -387,42 +479,77 @@ total_area <-R^2 * pi
 avg_glucose_concentration <- total_glucose_mass / total_area # calc. average concentrations over time 
 avg_microbe_concentration <- total_microbe_mass / total_area
 
+# Aveg. Glucose & Microbes concentration over time
+avg_glucose_concentration <- total_glucose_mass / total_area # calc. average concentrations over time 
+avg_microbe_concentration <- total_microbe_mass / total_area
+
 #time_vector <- time
-plot( time/86400, avg_glucose_concentration)
-lines(time/86400, avg_microbe_concentration, col = "green")
+plot( time/86400, avg_glucose_concentration, ylim = c(0,0.01),
+      lines(time/86400, avg_microbe_concentration, col = "green"),xlab = "Days", ylab = "Concentration", 
+      main = "Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "green"), lty = 1)
 
 # Aveg. inner most ring Glucose & Microbes conc. across time 
 inner_ring_glucose_concentration <- GLUCOSE_result[, 1] #Extract concentrations for the innermost ring
 inner_ring_microbe_concentration <- MICROBE_result[, 1] 
 
-plot(time/86400, inner_ring_glucose_concentration)
-lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise")
+plot(time/86400, inner_ring_glucose_concentration,
+     lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise"),
+     ylim = c(min(inner_ring_glucose_concentration, inner_ring_microbe_concentration), 
+              max(inner_ring_glucose_concentration, inner_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Inner Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "darkturquoise"), lty = 1)
 
 # Aveg. outer most ring Glucose & Microbes conc. across time 
-outer_ring_glucose_concentration <- GLUCOSE_result[, N] # Last column
-outer_ring_microbe_concentration <- MICROBE_result[, N] # Last column
+outer_ring_glucose_concentration <- GLUCOSE_result[, N] 
+outer_ring_microbe_concentration <- MICROBE_result[, N] 
 
-plot(time/86400, outer_ring_glucose_concentration)
-lines(time/86400, outer_ring_microbe_concentration, col = "red")
+plot(time/86400, outer_ring_glucose_concentration,
+     lines(time/86400, outer_ring_microbe_concentration, col = "red"),
+     ylim = c(min(outer_ring_glucose_concentration, outer_ring_microbe_concentration), 
+              max(outer_ring_glucose_concentration, outer_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Outer Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "red"), lty = 1)
 
 # Aveg. middle most ring Glucose & Microbes conc. across time 
-middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] # Middle column
-middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] # Middle column
+middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] 
+middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] 
 
-plot(time/86400, middle_ring_glucose_concentration)
-lines(time/86400, middle_ring_microbe_concentration, col = "purple")
+plot(time/86400, middle_ring_glucose_concentration,
+     lines(time/86400, middle_ring_microbe_concentration, col = "purple"),
+     ylim = c(min(middle_ring_glucose_concentration, middle_ring_microbe_concentration), 
+              max(middle_ring_glucose_concentration, middle_ring_microbe_concentration)),
+     xlab = "Days", ylab = "Concentration", 
+     main = "Middle Ring Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "purple"), lty = 1)
 
 # Distance of Microbe and Glucose at the end of the simulation at every location 
 final_glucose_concentration <- GLUCOSE_result[nrow(GLUCOSE_result), ]
 final_microbe_concentration <- MICROBE_result[nrow(MICROBE_result), ]
 
-plot(r, final_glucose_concentration)
-plot(r, final_microbe_concentration)
+plot(r, final_glucose_concentration,
+     xlab = "Location (r)", ylab = "Final Glucose Concentration", 
+     main = "Final Glucose Concentration at the End of Simulation")
+
+plot(r, final_microbe_concentration,
+     xlab = "Location (r)", ylab = "Final Microbe Concentration", 
+     main = "Final Microbe Concentration at the End of Simulation")
+
+# Plot the evolution of microbial biomass at the initial location over time
+plot(time/86400, MICROBE_result[, initial_microbe_location],
+     xlab = "Days", ylab = "Microbial Biomass",
+     main = "Microbial Biomass at Initial Location Over Time")
 
 #----------------------------------------------------------------------------------
 
 SOC_concentration <- bulk_density * 0.02 #mg
-SOC_mineralization_rate <- 0.05/365/86400  #second -1 (replace with your actual value = .00002)
+SOC_mineralization_rate <- 0.08/365/86400  #second -1 (replace with your actual value = .00002)
 SOC_mineralization <- SOC_concentration * SOC_mineralization_rate #mg * mm-3 * s-1
 
 # Model parameters (no uptake, no mortality, no CUE, no SOC mineralization)
@@ -432,8 +559,8 @@ dr <- R/N
 r <- seq(dr/2, by = dr, len = N)
 ri <- seq(0, by = dr, len = N+1)
 parms <- c(D = 0.5 * 10^-4,
-           uptakeRate = 0.2/86400,
-           mortalityRate = 0.0033/86400,
+           uptakeRate = 300/86400,
+           mortalityRate = 0.033/86400,
            CUE = 0.5,
            SOC_mineralization = SOC_mineralization)
 
@@ -476,45 +603,67 @@ avg_glucose_concentration <- total_glucose_mass / total_area # calc. average con
 avg_microbe_concentration <- total_microbe_mass / total_area
 
 #time_vector <- time
-plot( time/86400, avg_glucose_concentration, ylim = c(0,0.01))
-lines(time/86400, avg_microbe_concentration, col = "green")
+plot( time/86400, avg_glucose_concentration, ylim = c(0,0.01),
+lines(time/86400, avg_microbe_concentration, col = "green"),xlab = "Days", ylab = "Concentration", 
+main = "Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "green"), lty = 1)
 
 # Aveg. inner most ring Glucose & Microbes conc. across time 
 inner_ring_glucose_concentration <- GLUCOSE_result[, 1] #Extract concentrations for the innermost ring
 inner_ring_microbe_concentration <- MICROBE_result[, 1] 
 
-plot(time/86400, inner_ring_glucose_concentration)
-lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise")
+plot(time/86400, inner_ring_glucose_concentration,
+lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise"),
+ylim = c(min(inner_ring_glucose_concentration, inner_ring_microbe_concentration), 
+         max(inner_ring_glucose_concentration, inner_ring_microbe_concentration)),
+xlab = "Days", ylab = "Concentration", 
+main = "Inner Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "darkturquoise"), lty = 1)
 
 # Aveg. outer most ring Glucose & Microbes conc. across time 
 outer_ring_glucose_concentration <- GLUCOSE_result[, N] 
 outer_ring_microbe_concentration <- MICROBE_result[, N] 
 
-plot(time/86400, outer_ring_glucose_concentration)
-lines(time/86400, outer_ring_microbe_concentration, col = "red")
+plot(time/86400, outer_ring_glucose_concentration,
+lines(time/86400, outer_ring_microbe_concentration, col = "red"),
+ylim = c(min(outer_ring_glucose_concentration, outer_ring_microbe_concentration), 
+         max(outer_ring_glucose_concentration, outer_ring_microbe_concentration)),
+xlab = "Days", ylab = "Concentration", 
+main = "Outer Ring Glucose and Microbe Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "red"), lty = 1)
 
 # Aveg. middle most ring Glucose & Microbes conc. across time 
 middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] 
 middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] 
 
-plot(time/86400, middle_ring_glucose_concentration)
-lines(time/86400, middle_ring_microbe_concentration, col = "purple")
+plot(time/86400, middle_ring_glucose_concentration,
+lines(time/86400, middle_ring_microbe_concentration, col = "purple"),
+ylim = c(min(middle_ring_glucose_concentration, middle_ring_microbe_concentration), 
+         max(middle_ring_glucose_concentration, middle_ring_microbe_concentration)),
+xlab = "Days", ylab = "Concentration", 
+main = "Middle Ring Concentration Over Time")
+
+legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "purple"), lty = 1)
 
 # Distance of Microbe and Glucose at the end of the simulation at every location 
 final_glucose_concentration <- GLUCOSE_result[nrow(GLUCOSE_result), ]
 final_microbe_concentration <- MICROBE_result[nrow(MICROBE_result), ]
 
-plot(r, final_glucose_concentration)
-plot(r, final_microbe_concentration)
+plot(r, final_glucose_concentration,
+xlab = "Location (r)", ylab = "Final Glucose Concentration", 
+main = "Final Glucose Concentration at the End of Simulation")
 
-
+plot(r, final_microbe_concentration,
+xlab = "Location (r)", ylab = "Final Microbe Concentration", 
+main = "Final Microbe Concentration at the End of Simulation")
 
 # Plot the evolution of microbial biomass at the initial location over time
-plot(time/86400, MICROBE_result[, initial_microbe_location])
-
-
-
-
+plot(time/86400, MICROBE_result[, initial_microbe_location],
+xlab = "Days", ylab = "Microbial Biomass",
+main = "Microbial Biomass at Initial Location Over Time")
 
 
 
