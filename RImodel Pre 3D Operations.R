@@ -2,7 +2,7 @@
 library(tidyverse); library(RColorBrewer); library(deSolve)
 
 # Function: Diffusion for Glucose and Microbes
-RImodel <- function(time, state, parms, distance, nr0) {
+RImodel2 <- function(time, state, parms, distance, nr0) {
   with(as.list(parms), {
     nr = nr0 # renaming this argument, throws error of 'nr' is used as argument name in ode.1D
     dr = distance/nr
@@ -28,16 +28,16 @@ RImodel <- function(time, state, parms, distance, nr0) {
     dGLUCOSE = c(b1, dGLUCOSE, b2)  # Concatenating boundary conditions with the computed derivatives
     
     #Biology: Glucose and Microbes (Exchange)
-    GlucoseUptake <- uptakeRate * GLUCOSE * MICROBE     # GlucoseUptake represents the rate at which microbes take up glucose from their environment.It is calculated by multiplying the uptakeRate with the current concentrations of GLUCOSE and MICROBE.
-    MicrobeGrowth <- GlucoseUptake * CUE                # MicrobeGrowth represents the growth of microbes based on glucose uptake and Carbon Use Efficiency (CUE).It quantifies the increase in microbe population due to the availability of glucose, considering the efficiency of resource utilization (CUE).
+    GlucoseUptake <- umax * MICROBE * GLUCOSE/(Kc+GLUCOSE)    
+    MicrobeGrowth <- GlucoseUptake * CUE                      # MicrobeGrowth represents the growth of microbes based on glucose uptake and Carbon Use Efficiency (CUE).It quantifies the increase in microbe population due to the availability of glucose, considering the efficiency of resource utilization (CUE).
     MicrobeMortality <- mortalityRate * MICROBE         # MicrobeMortality represents the rate at which microbes die off. It is calculated by multiplying the mortalityRate with the current concentration of MICROBE.
-    depolymerization <-Vmaxprime * MICROBE/(MICROBE+km) # Depolymerization represents the breakdown of complex molecules into simpler units by microbes.Vmaxprime is the maximum rate of depolymerization.
+    depolymerization <-Vprime * MICROBE/(MICROBE+Km) # Depolymerization represents the breakdown of complex molecules into simpler units by microbes.Vmaxprime is the maximum rate of depolymerization.
                                                         # MICROBE is the microbe concentration, and km is the Michaelis constant. The rate of depolymerization increases with higher MICROBE concentration but levels off at higher concentrations due to the Michaelis constant.
     
     #Rate of change = Flux gradient + Biology 
-    dGLUCOSE <-  dGLUCOSE - GlucoseUptake + MicrobeMortality + depolymerization # The change in glucose concentration over time is influenced by: Diffusion processes causing glucose to move within the system,Glucose uptake by microbes-reducing glucose concentration
-                                                                                # Microbe mortality-leading to the release of glucose back into the environment & Microbial depolymerization, breaking down complex molecules into glucose 
-    dMICROBE <- MicrobeGrowth - MicrobeMortality                                # The change in microbe population over time is influenced by: Microbial growth due to glucose uptake & Microbe mortality, representing the death of microbes 
+    dGLUCOSE <-  dGLUCOSE - GlucoseUptake + f_doc * MicrobeMortality + depolymerization 
+                                                                                      # Microbe mortality-leading to the release of glucose back into the environment & Microbial depolymerization, breaking down complex molecules into glucose 
+    dMICROBE <- MicrobeGrowth - MicrobeMortality                                      # The change in microbe population over time is influenced by: Microbial growth due to glucose uptake & Microbe mortality, representing the death of microbes 
     
     
     return(list(c(dGLUCOSE, dMICROBE))) # Returning the derivative vectors for glucose diffusion and microbe dynamics.
@@ -70,31 +70,79 @@ glu_needed <- C_add * 180.156 / 72.06 * 1000 #glucose plant production (mg)
 
 D <- 0.5 * 10^-4 #diffusion of glucose mm2/s #sourced from Chenu and Roberson (1996) given VWC ~ 30
 
-##########################################################################################################
 # Model application
 
+#################################
+# Estimate parameters for biology
+################################
+secperyear = 86400*365
+secperday = 86400            # relationship between eq. biomass and KM Km = Km_amp*M
+basemin = 0.02/15/secperday #[ug mm-3] -+> #2percent carbon, 15years turnover 
+BD = 1.1
+  
+# base mineralization 1.1 ug CO2 hr-1 kg-1 (Shelby)
+basemin = 1.1/1000 * BD * 12/44/3600  # Shelby's base respiration [CO2 hr-1 kg-1]  
+death = 12/secperyear  #s-1
+cue  = 0.5  #carbon use efficiency | unitless
+
+# Values to derive parameters 
+#base mineralization 1.1 mg CO2 hr-1 kg-1 -> Shelby (converting into ugC mm-3 s-1)
+
+basemin = 1.1e-3 * BD * 12/44/3600  
+X = 1                        #relationship between eq. biomass and KM: Km = X*M
+lambda_c = 1/secperday       #Turnover of DOC is assumed 1 day-1
+
+#Derivation of Direct parameters
+f_doc = 0.3               #fraction of microbial death become doc
+doubling_time = 3600 * 4  #Maximum microbial growth rate expressed in time for 2x
+
+# DOC uptake coefficient estimated| M=C at equilibrium
+uptake = death^2 * (1-cue)/cue^2/basemin    #[s-1 (ug mm^3)^-1]
+
+# Derived parameters and state variables equilibria
+umax = log(2)/(cue * doubling_time)
+Vprime = basemin * (1 + X)                 
+m0 = basemin * cue/death/(1 - f_doc * cue) #equilibrum microbes
+c0 = death/cue/uptake
+Km = X * m0                               
+Kc = Umax/lambda_c * m0 - c0               
+
+#depolymerization rate(base release under equilibrium)
+Vprime = basemin * (1+X)/cue  #[ug mm^-3 s-1]   
+
+#Km calculated based on equilibrium biomass
+Km = X * cue * basemin/death/(1-cue) #[ug mm^-3 s-1] 
+
+Diffusion_coef = 1e-6 #mm^2 s-1 
+I = 0.28              #(impedance at 100% water)
+D = 6.3e-4 * I * 0.7  #Priesack & Kisser-Priesack (1993) 
+
+#------------------
 # Model parameters
+#------------------
 R <- 20     #Radius of the system
 N <- 100    #Number of spatial grid points
 dr <- R/N   #Spatial grid size
 r <- seq(dr/2, by = dr, len = N)
 ri <- seq(0, by = dr, len = N+1) #Inner radius of each grid point
 dri <- dr   #Grid spacing
-parms <- c(D = 0.5e-4,             #Diffusion coefficient
-           uptakeRate = 2.4e-11,  #Initial uptake rate of glucose by microbes
-           mortalityRate = 1.05e-9,   #Microbial mortality rate
-           CUE = 0.5,                   #Carbon use efficiency
-           Vmaxprime = 3.7e-7,         #Maximum microbial growth rate
-           km = 88)                         #Michaelis-Menten constant for glucose uptake
 
+parms <- c(D = Diffusion_coef,
+           uptakeRate = uptake, #Initial uptake rate of glucose by microbes
+           CUE = cue,           #Carbon use efficiency
+           umax = umax,
+           f_doc,               #Fraction of microbial death become doc
+           mortalityRate= death,    #Microbial mortality rate
+           Km = Km,             #Michaelis-Menten constant for glucose uptake
+           Kc = Kc,             #Half saturation constant for doc
+           Vmaxprime = Vprime)  #Maximum depolymerization rate
 
 # Initial conditions
 
 #The initial glucose concentration at the first grid point is calculated as 1% of SOC (Soil Organic Carbon) concentration
-Glucose = rep(0, N) #Initialize an array of length N (number of grid points) with initial glucose concentration set to 0
-Glucose[1] <- C_add <- SOC * 0.01 #Set the initial glucose concentration at the first grid point
-Microbes = rep(C_add/100, N) #The initial microbial concentration is set to a fraction (1/100) of the initial glucose concentration (C_add).
-                             #Initialize an array of length N with initial microbial concentration set to a fraction of C_add
+Glucose = rep(c0, N) #Initialize an array of length N (number of grid points) with initial glucose concentration set to c0
+Microbes = rep(m0, N) #The initial microbial concentration is set to m0.
+                             
 
 #'state' is a concatenated vector containing the initial concentrations of glucose followed by microbial concentrations.
 state = c(Glucose,Microbes) #Combine the arrays of initial glucose and microbial concentrations into a single state vector
@@ -103,7 +151,7 @@ state = c(Glucose,Microbes) #Combine the arrays of initial glucose and microbial
 
 # Solve the model using the default banded reformulation method
 model <- RImodel(0, state, parms, distance, N)
-result <- ode.1D(y = state, times = time, func = RImodel, parms = parms, distance = R, nr0 = N, dimens = N,
+result <- ode.1D(y = state, times = time, func = RImodel2, parms = parms, distance = R, nr0 = N, dimens = N,
                  nspec = 2, names = c("GLUCOSE", "MICROBE"), method = "lsoda")
 
 time = result[,1]
@@ -125,44 +173,14 @@ area = (ri[2:(N+1)]^2 - ri[1:(N)]^2) * pi
 #total area
 total_area <-R^2 * pi 
 
-# Plotting the total mass of glucose over time
-plot(time/86400, total_glucose_mass, 
-     type = "l", 
-     xlab = "Time", 
-     ylab = "Total Glucose Mass (g)",
-     main = "Total Glucose Mass Over Time",
-
-col = "orange",                              # Set line color 
-ylim = c(0, max(total_glucose_mass) * 1.2))  # Set y-axis limit to 20% more than the maximum value
-
-# Adding labels and annotations
-abline(h = max(total_glucose_mass), col = "red", lty = 2)  # Add a horizontal dashed line at the maximum glucose mass
-text(max(time/86400), max(total_glucose_mass), 
-     paste("Max Glucose Mass:", round(max(total_glucose_mass), 2), "g"), 
-     pos = 4, col = "red")  # Annotate the maximum glucose mass value
-
-# Plotting the total mass of microbes over time
-plot(time/86400, total_microbe_mass, 
-     type = "l", 
-     xlab = "Time", 
-     ylab = "Total Microbe Mass", 
-     main = "Total Microbe Mass Over Time",
-
-col = "green",     # Set line color to green
-ylim = c(0, max(total_microbe_mass) * 1.2))  # Set y-axis limit to 20% more than the maximum value
-
-# Adding labels and annotations
-abline(h = max(total_microbe_mass), col = "red", lty = 2)  # Add a horizontal dashed line at the maximum microbe mass
-text(max(time/86400), max(total_microbe_mass), 
-     paste("Max Microbe Mass:", round(max(total_microbe_mass), 2), "g"), 
-     pos = 4, col = "red")  # Annotate the maximum microbe mass value
+# PLOTS #
 
 # Aveg. Glucose & Microbes concentration over time
 avg_glucose_concentration <- total_glucose_mass / total_area # calc. average concentrations over time 
 avg_microbe_concentration <- total_microbe_mass / total_area
 
 #time_vector <- time
-plot( time/86400, avg_glucose_concentration, ylim = c(0,0.01),
+plot( time/86400, avg_glucose_concentration, 
       lines(time/86400, avg_microbe_concentration, col = "green"),xlab = "Days", ylab = "Concentration", 
       main = "Glucose and Microbe Concentration Over Time")
 
@@ -224,3 +242,35 @@ plot(time/86400, MICROBE_result[, initial_microbe_location],
      xlab = "Days", ylab = "Microbial Biomass",
      main = "Microbial Biomass at Initial Location Over Time")
 
+#-------------------------------------------------------------------- Testing Extra Plot Options 
+# Assuming that DOC is the same as the initial Glucose concentration
+initial_DOC_concentration <- C_add * 0.01  # 1% of SOC
+
+# Create a vector of constant DOC values over time
+constant_DOC <- rep(initial_DOC_concentration, length(time))
+
+# Plotting constant DOC concentration over time
+plot(time, constant_DOC, type = "l", col = "coral",
+     xlab = "Time (seconds)", ylab = "DOC Concentration",
+     main = "Constant DOC Concentration Over Time (No Glucose Addition)")
+
+barplot(parms, names.arg = names(parms), col = "gold", 
+        main = "Parameter Comparison", ylab = "Parameter Value")
+
+boxplot(parms, main = "Parameter Distribution", 
+        ylab = "Parameter Value", col = "darkorange")
+
+par(mfrow=c(1,2))
+barplot(parms[c("D", "uptakeRate")], beside = TRUE, 
+        col = c("greenyellow", "cyan"), 
+        main = "Comparison of D and uptakeRate", legend.text = TRUE)
+
+plot(umax,mortalityRate, col = "magenta", 
+     main = "Scatter Plot of umax vs deathRate", 
+     xlab = "umax", ylab = "deathRate")
+
+plot(Km, type = "o", col = "lavender", lwd = 2, 
+     ylim = range(Km,Kc), 
+     main = "Line Plot of Km and Kc", xlab = "Parameter", ylab = "Value")
+lines(Kc, type = "o", col = "darkkhaki", lwd = 2)
+legend("topright", legend = c("Km", "Kc"), col = c("lavender", "darkkhaki"), lty = 1, cex = 0.8)
