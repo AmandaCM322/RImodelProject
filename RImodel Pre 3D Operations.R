@@ -29,9 +29,9 @@ RImodel2 <- function(time, state, parms, distance, nr0) {
     
     #Biology: Glucose and Microbes (Exchange)
     GlucoseUptake <- umax * MICROBE * GLUCOSE/(Kc+GLUCOSE)    
-    MicrobeGrowth <- GlucoseUptake * CUE                      # MicrobeGrowth represents the growth of microbes based on glucose uptake and Carbon Use Efficiency (CUE).It quantifies the increase in microbe population due to the availability of glucose, considering the efficiency of resource utilization (CUE).
+    MicrobeGrowth <- GlucoseUptake * CUE                # MicrobeGrowth represents the growth of microbes based on glucose uptake and Carbon Use Efficiency (CUE).It quantifies the increase in microbe population due to the availability of glucose, considering the efficiency of resource utilization (CUE).
     MicrobeMortality <- mortalityRate * MICROBE         # MicrobeMortality represents the rate at which microbes die off. It is calculated by multiplying the mortalityRate with the current concentration of MICROBE.
-    depolymerization <-Vprime * MICROBE/(MICROBE+Km) # Depolymerization represents the breakdown of complex molecules into simpler units by microbes.Vmaxprime is the maximum rate of depolymerization.
+    depolymerization <-Vprime * MICROBE/(MICROBE+Km)    # Depolymerization represents the breakdown of complex molecules into simpler units by microbes.Vmaxprime is the maximum rate of depolymerization.
                                                         # MICROBE is the microbe concentration, and km is the Michaelis constant. The rate of depolymerization increases with higher MICROBE concentration but levels off at higher concentrations due to the Michaelis constant.
     
     #Rate of change = Flux gradient + Biology 
@@ -65,7 +65,8 @@ bulk_density <- 1.01 #g/cm^3 = mg/mm^3
 soil_mass <- bulk_density * area_volume #mg
 SOC <- soil_mass * 0.02 #Assumes SOC is 2% (mg)
 
-C_add <- SOC * 0.01 #Add 1% of SOC in terms of glucose carbon (mg)
+#C_add <- SOC * 0.01 * pi * r[N]^2 #Add 1% of SOC in terms of glucose carbon (mg)
+C_add <- 1680 * 0.05 
 glu_needed <- C_add * 180.156 / 72.06 * 1000 #glucose plant production (mg)
 
 D <- 0.5 * 10^-4 #diffusion of glucose mm2/s #sourced from Chenu and Roberson (1996) given VWC ~ 30
@@ -74,7 +75,7 @@ D <- 0.5 * 10^-4 #diffusion of glucose mm2/s #sourced from Chenu and Roberson (1
 
 #################################
 # Estimate parameters for biology
-################################
+#################################
 secperyear = 86400*365
 secperday = 86400            # relationship between eq. biomass and KM Km = Km_amp*M
 basemin = 0.02/15/secperday #[ug mm-3] -+> #2percent carbon, 15years turnover 
@@ -90,32 +91,29 @@ cue  = 0.5  #carbon use efficiency | unitless
 
 basemin = 1.1e-3 * BD * 12/44/3600  
 X = 1                        #relationship between eq. biomass and KM: Km = X*M
-lambda_c = 1/secperday       #Turnover of DOC is assumed 1 day-1
 
 #Derivation of Direct parameters
-f_doc = 0.3               #fraction of microbial death become doc
+doc_turn_time = 86400     # 1 day in S-1 
+f_doc = 0.3               #fraction of microbial death become doc (a)
 doubling_time = 3600 * 4  #Maximum microbial growth rate expressed in time for 2x
+P = 0.2                   # Priming factor 2% 
 
-# DOC uptake coefficient estimated| M=C at equilibrium
-uptake = death^2 * (1-cue)/cue^2/basemin    #[s-1 (ug mm^3)^-1]
+c0 = basemin*doc_turn_time/ (1 - f_doc*cue)
+m0 = cue*basemin/ (death * (1 - f_doc*cue)) # = aD0 
 
 # Derived parameters and state variables equilibria
 umax = log(2)/(cue * doubling_time)
-Vprime = basemin * (1 + X)                 
-m0 = basemin * cue/death/(1 - f_doc * cue) #equilibrum microbes
-c0 = death/cue/uptake
-Km = X * m0                               
-Kc = Umax/lambda_c * m0 - c0               
+Kc = umax*m0*doc_turn_time-c0
 
 #depolymerization rate(base release under equilibrium)
-Vprime = basemin * (1+X)/cue  #[ug mm^-3 s-1]   
+Vprime = basemin / (1 - P)  
 
 #Km calculated based on equilibrium biomass
-Km = X * cue * basemin/death/(1-cue) #[ug mm^-3 s-1] 
+Km = P / (1 - P) * m0 
 
-Diffusion_coef = 1e-6 #mm^2 s-1 
+# = 1e-6 #mm^2 s-1 
 I = 0.28              #(impedance at 100% water)
-D = 6.3e-4 * I * 0.7  #Priesack & Kisser-Priesack (1993) 
+Diffusion_coef = 6.3e-4 * I * 0.7  #Priesack & Kisser-Priesack (1993) 
 
 #------------------
 # Model parameters
@@ -141,8 +139,9 @@ parms <- c(D = Diffusion_coef,
 
 #The initial glucose concentration at the first grid point is calculated as 1% of SOC (Soil Organic Carbon) concentration
 Glucose = rep(c0, N) #Initialize an array of length N (number of grid points) with initial glucose concentration set to c0
-Microbes = rep(m0, N) #The initial microbial concentration is set to m0.
-                             
+Microbes = rep(m0, N) #The initial microbial concentration is set to m0
+
+Glucose [1] = c0 + C_add  #Glucose addition on & off 
 
 #'state' is a concatenated vector containing the initial concentrations of glucose followed by microbial concentrations.
 state = c(Glucose,Microbes) #Combine the arrays of initial glucose and microbial concentrations into a single state vector
@@ -150,7 +149,7 @@ state = c(Glucose,Microbes) #Combine the arrays of initial glucose and microbial
 # Time points for output
 
 # Solve the model using the default banded reformulation method
-model <- RImodel(0, state, parms, distance, N)
+model <- RImodel2(0, state, parms, distance, N)
 result <- ode.1D(y = state, times = time, func = RImodel2, parms = parms, distance = R, nr0 = N, dimens = N,
                  nspec = 2, names = c("GLUCOSE", "MICROBE"), method = "lsoda")
 
@@ -160,46 +159,57 @@ time = result[,1]
 GLUCOSE_result <- result[, 2:(N + 1)]
 MICROBE_result <- result[, (N + 2):(2*N + 1)]
 
-# Account for the area 
+# Account for the area
+
+# Area for each ring
+area = (ri[2:(N+1)]^2 - ri[1:(N)]^2) * pi
+
 # Calculate the total mass of glucose and microbes over time
 area_matrix <- matrix(rep(area,length(time)),nrow=length(time),ncol=N,byrow=TRUE) #creates matrix with area repeated for each time
 
 total_glucose_mass <-  rowSums(GLUCOSE_result * area_matrix) #get mass by multiplying concentration with area
-total_microbe_mass <- rowSums(MICROBE_result * area_matrix)
+total_microbe_mass <- rowSums(MICROBE_result * area_matrix )
 
-#Area for each ring
-area = (ri[2:(N+1)]^2 - ri[1:(N)]^2) * pi
+GLUCOSE_ZONE1 = rowSums(GLUCOSE_result [,1:25] * area_matrix [,1:25]) / sum(area [1:25])
+GLUCOSE_ZONE2 = rowSums(GLUCOSE_result [,26:50] * area_matrix [,26:50]) / sum(area [26:50])
+GLUCOSE_ZONE3 =rowSums(GLUCOSE_result [,51:75] * area_matrix [,51:75]) / sum(area [51:75])
+GLUCOSE_ZONE4 = rowSums(GLUCOSE_result [,76:100] * area_matrix [,76:100]) / sum(area [76:100])
 
+
+MICROBE_ZONE1 = rowSums(MICROBE_result [,1:25] * area_matrix [,1:25]) / sum(area [1:25])
+MICROBE_ZONE2 = rowSums(MICROBE_result [,26:50] * area_matrix [,26:50]) / sum(area [26:50])
+MICROBE_ZONE3 =rowSums(MICROBE_result [,51:75] * area_matrix [,51:75]) / sum(area [51:75])
+MICROBE_ZONE4 = rowSums(MICROBE_result [,76:100] * area_matrix [,76:100]) / sum(area [76:100])                             
+                            
 #total area
 total_area <-R^2 * pi 
 
 # PLOTS #
 
-# Aveg. Glucose & Microbes concentration over time
+# Glucose & Microbes concentration over time
 avg_glucose_concentration <- total_glucose_mass / total_area # calc. average concentrations over time 
 avg_microbe_concentration <- total_microbe_mass / total_area
 
 #time_vector <- time
-plot( time/86400, avg_glucose_concentration, 
+plot( time/86400, avg_glucose_concentration, ylim = c(0,0.2),
       lines(time/86400, avg_microbe_concentration, col = "green"),xlab = "Days", ylab = "Concentration", 
       main = "Glucose and Microbe Concentration Over Time")
 
 legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "green"), lty = 1)
 
-# Aveg. inner most ring Glucose & Microbes conc. across time 
+# inner most ring Glucose & Microbes conc. across time 
 inner_ring_glucose_concentration <- GLUCOSE_result[, 1] #Extract concentrations for the innermost ring
 inner_ring_microbe_concentration <- MICROBE_result[, 1] 
 
-plot(time/86400, inner_ring_glucose_concentration,
-     lines(time/86400, inner_ring_microbe_concentration, col = "darkturquoise"),
-     ylim = c(min(inner_ring_glucose_concentration, inner_ring_microbe_concentration), 
-              max(inner_ring_glucose_concentration, inner_ring_microbe_concentration)),
+plot(time/86400, inner_ring_glucose_concentration, 
+     lines(time/86400,inner_ring_microbe_concentration, col = "darkturquoise"),
+     ylim = c(min(MICROBE_result), max(GLUCOSE_result)),
      xlab = "Days", ylab = "Concentration", 
      main = "Inner Ring Glucose and Microbe Concentration Over Time")
 
 legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "darkturquoise"), lty = 1)
 
-# Aveg. outer most ring Glucose & Microbes conc. across time 
+# outer most ring Glucose & Microbes conc. across time 
 outer_ring_glucose_concentration <- GLUCOSE_result[, N] 
 outer_ring_microbe_concentration <- MICROBE_result[, N] 
 
@@ -212,7 +222,7 @@ plot(time/86400, outer_ring_glucose_concentration,
 
 legend("topright", legend = c("Glucose Conc.", "Microbe Conc."), col = c("black", "red"), lty = 1)
 
-# Aveg. middle most ring Glucose & Microbes conc. across time 
+# middle most ring Glucose & Microbes conc. across time 
 middle_ring_glucose_concentration <- GLUCOSE_result [, (N + 1) %/% 2] 
 middle_ring_microbe_concentration <- MICROBE_result [, (N + 1) %/% 2] 
 
@@ -237,40 +247,41 @@ plot(r, final_microbe_concentration,
      xlab = "Location (r)", ylab = "Final Microbe Concentration", 
      main = "Final Microbe Concentration at the End of Simulation")
 
-# Plot the evolution of microbial biomass at the initial location over time
-plot(time/86400, MICROBE_result[, initial_microbe_location],
-     xlab = "Days", ylab = "Microbial Biomass",
-     main = "Microbial Biomass at Initial Location Over Time")
+#--------#---------#-----------#--------------
 
-#-------------------------------------------------------------------- Testing Extra Plot Options 
-# Assuming that DOC is the same as the initial Glucose concentration
-initial_DOC_concentration <- C_add * 0.01  # 1% of SOC
+# Extract concentrations for the innermost ring
+inner_ring_glucose_concentration <- GLUCOSE_result[, 1]
+inner_ring_microbe_concentration <- MICROBE_result[, 1]
 
-# Create a vector of constant DOC values over time
-constant_DOC <- rep(initial_DOC_concentration, length(time))
+# Extract concentrations for the outermost ring
+outer_ring_glucose_concentration <- GLUCOSE_result[, N]
+outer_ring_microbe_concentration <- MICROBE_result[, N]
 
-# Plotting constant DOC concentration over time
-plot(time, constant_DOC, type = "l", col = "coral",
-     xlab = "Time (seconds)", ylab = "DOC Concentration",
-     main = "Constant DOC Concentration Over Time (No Glucose Addition)")
+# Extract concentrations for the middlemost ring
+middle_ring_glucose_concentration <- GLUCOSE_result[, (N + 1) %/% 2]
+middle_ring_microbe_concentration <- MICROBE_result[, (N + 1) %/% 2]
 
-barplot(parms, names.arg = names(parms), col = "gold", 
-        main = "Parameter Comparison", ylab = "Parameter Value")
+###
 
-boxplot(parms, main = "Parameter Distribution", 
-        ylab = "Parameter Value", col = "darkorange")
+# Create the initial plot with the innermost ring
+plot(time/86400, inner_ring_glucose_concentration * (2*pi*r[1]*dr),
+     type = "l", col = "black",
+     xlab = "Days", ylab = "MASS",
+     main = "Glucose and Microbe MASS Over Time")
 
-par(mfrow=c(1,2))
-barplot(parms[c("D", "uptakeRate")], beside = TRUE, 
-        col = c("greenyellow", "cyan"), 
-        main = "Comparison of D and uptakeRate", legend.text = TRUE)
+lines(time/86400, inner_ring_microbe_concentration * (2*pi*r[1]*dr), col = "darkturquoise", lty = 2)
 
-plot(umax,mortalityRate, col = "magenta", 
-     main = "Scatter Plot of umax vs deathRate", 
-     xlab = "umax", ylab = "deathRate")
+# Add lines for the outermost ring
+lines(time/86400, outer_ring_glucose_concentration * (2*pi*r[N]*dr), col = "red")
+lines(time/86400, outer_ring_microbe_concentration * (2*pi*r[N]*dr), col = "darkorange", lty = 2)
 
-plot(Km, type = "o", col = "lavender", lwd = 2, 
-     ylim = range(Km,Kc), 
-     main = "Line Plot of Km and Kc", xlab = "Parameter", ylab = "Value")
-lines(Kc, type = "o", col = "darkkhaki", lwd = 2)
-legend("topright", legend = c("Km", "Kc"), col = c("lavender", "darkkhaki"), lty = 1, cex = 0.8)
+# Add lines for the middlemost ring
+lines(time/86400, middle_ring_glucose_concentration * (2*pi*r[N/2]*dr), col = "purple")
+lines(time/86400, middle_ring_microbe_concentration * (2*pi*r[N/2]*dr), col = "blue", lty = 2)
+
+# Add legend
+legend("topright", legend = c("Glucose Inner", "Microbe Inner", "Glucose Outer", "Microbe Outer", "Glucose Middle", "Microbe Middle"),
+       col = c("black", "darkturquoise", "red", "darkorange", "purple", "blue"), lty = c(1, 2, 1, 2, 1, 2))
+
+
+##
